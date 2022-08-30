@@ -1,0 +1,531 @@
+---
+title: "Esame Fondamenti di Scienza dei Dati e Laboratorio"
+author: "Comisso Andrea, 147984"
+
+output: powerpoint_presentation 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+```
+
+
+## Studio delle olimpiadi invernali ed'estive 
+
+Il presente documento ha lo scopo di analizzare un dataset estraendo e visualizzando varie metriche.
+La creazione delle rappresentazioni è stata effettuata utilizzando il linguaggio r.
+
+
+Il dataset utilizzato per questo studio è quello relativo alle olimpiadi dal 1896 al 2022.
+Sono state prese in esame varie metriche alcune di queste sono:
+
+    1. Medaglie vinte.
+    
+    2. Discipline presenti. 
+    
+    3. Popolazione delle varie nazioni.
+    
+    4. Partecipanti agli eventi
+    
+    
+```{r, echo = FALSE, results='hide', librerie}
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(ggplot2)
+library(dplyr)
+require(maps)
+library(gapminder)
+library(readr)
+library(tidyr)
+library(ggthemes)
+library(gganimate)
+library(plotly)
+```
+
+
+
+
+    
+```{r, echo = FALSE, dataset}
+iso3_code <- read_csv("countries_codes_and_coordinates.csv")
+anni = read.csv('Olympic_Games_Medal_Tally.csv', sep=",")
+partecipanti = read.csv('Olympic_Athlete_Bio.csv', sep=",")
+evento = read.csv('eventi.csv', sep=",")
+popolazione = read.csv('population2020.csv', sep=",")
+popolazione[21,1]="UK"
+popolazione[86,1]="Czech Republic"
+
+anni$country[anni$country=="Great Britain"]="UK"
+anni$country[anni$country=="West Germany"]="Germany"
+anni$country[anni$country=="East Germany"]="Germany"
+anni$country[anni$country=="People's Republic of China"]="China"
+anni$country[anni$country=="Chinese Taipei"]="China"
+anni$country[anni$country=="Hong Kong, China"]="China"
+anni$country[anni$country=="ROC"]="Russia"
+anni$country[anni$country=="Russian Federation"]="Russia"
+evento$edition[evento$edition=="1956 Equestrian Olympics"]="1956 Summer Olympics"
+
+```
+
+
+
+
+
+```{r, echo=FALSE, echo=FALSE,results='hide', creazioneDatiGrafico1}
+
+
+popolazione=popolazione%>%
+  mutate(region=Country..or.dependency.,popolazione=Population..2020.)%>%
+  select(popolazione,region)
+
+
+
+medaglie=anni%>%
+  select(year,gold,silver,bronze)%>%
+  group_by(year)%>%
+  summarise(gold=sum(gold),silver=sum(silver),bronze=sum(bronze))
+  
+statimedagliesomma=anni%>%
+  mutate(region=country)%>%
+  group_by(region)%>%
+  select(region,total)%>%
+  summarise(sommamedaglie=sum(total))%>%
+  arrange(region)
+
+
+statimedaglie=anni%>%
+  select(year,country_noc,total)
+
+
+
+```
+
+
+```{r, echo=FALSE,results='hide', creazioneDatiGrafico2}
+
+gdp_formatted <- statimedaglie %>%
+  group_by(year) %>%
+  mutate(rank = rank(-total),
+         Value_rel = total/total[rank==1]) %>%
+  group_by(country_noc) %>% 
+  filter(rank <=5) %>%
+  arrange(year,desc(total))%>%
+  ungroup()
+
+staticplot = ggplot(gdp_formatted, aes(rank, group = country_noc, 
+                fill = as.factor(country_noc), color = as.factor(country_noc))) +
+  geom_tile(aes(y = total/2,
+                height = total,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(country_noc, " ")), vjust = 0.2, hjust = 1) +
+  geom_text(aes(y=total,label = total, hjust=0)) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = none, fill = none) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+         axis.title.y=element_blank(),
+        legend.position="none",
+        panel.background=element_blank(),
+        panel.border=element_blank(),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major.x = element_line( size=.1, color="grey" ),
+        panel.grid.minor.x = element_line( size=.1, color="grey" ),
+        plot.title=element_text(size=25, hjust=0.5, face="bold", colour="grey", vjust=-1),
+        plot.subtitle=element_text(size=23, hjust=0.5, face="italic", color="grey"),
+        plot.caption =element_text(size=12, hjust=0.5, face="italic", color="grey"),
+        plot.background=element_blank(),
+       plot.margin = margin(2,2,2,4,"cm"))
+
+anim = staticplot + transition_states(year, transition_length = 4, state_length = 1) +
+  view_follow(fixed_x = TRUE)  +
+  labs(title = 'medaglie vinte : {closest_state}',  
+       subtitle  =  "Top 5 Countries",
+       caption  = "medaglie vinte dagli stati | Data Source: Olimpic games-Kaggle")
+
+
+grafico=animate(anim, 200, fps = 5,  width = 750, height = 400, 
+        renderer = gifski_renderer("gganim.gif"))
+grafico
+  
+```
+
+
+## Medagliere olimpico Mondiale
+
+```{r, echo=FALSE, grafico-medagliere-mondiale1}
+
+
+grafico
+```
+
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico10}
+
+medaglieperstato=anni%>%
+  mutate(Country=country)%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  select(year,edition,Country,gold,silver,bronze)%>%
+  filter(edition=="Summer")%>%
+  group_by(year,Country)%>%
+  summarise(medaglievinte=sum(gold,silver,bronze))
+
+
+medaglieperstato$Country[medaglieperstato$Country=="UK"]="United Kingdom"
+medaglieperstato$Country[medaglieperstato$Country=="Soviet Union"]="Russia"
+
+
+
+
+medaglieperstato=medaglieperstato%>%full_join(iso3_code)%>%
+  drop_na() 
+
+mrg <- list(b = 100)
+
+```
+
+
+## Medagliere mondiale
+
+
+```{r, echo=FALSE, grafico-medagliere-mondiale2}
+fig <- plot_geo(medaglieperstato, frame = ~year) %>%
+  add_trace(locations = ~`Alpha-3 code`,
+            z = ~`medaglievinte`,
+            zmin = min(medaglieperstato$`medaglievinte`),
+            zmax = max(medaglieperstato$`medaglievinte`),
+            color = ~`medaglievinte`,
+            colorscale = "Hot_r") %>%
+  layout(title = "Totale medaglie vinte\n1896 - 2020",
+         geo = list(showocean = TRUE, oceancolor = rgb(0,1,1)),
+           margin = mrg) %>%
+  animation_opts(50) %>%
+  colorbar(title = "Numero", ticksuffix = "Medaglie") %>%
+  config(displayModeBar = FALSE)
+
+fig
+```
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico3}
+ some.eu.countries <- c(
+  "Portugal", "Spain", "France", "Switzerland", "Germany",
+  "Austria", "Belgium", "UK", "Netherlands",
+  "Denmark", "Poland", "Italy", 
+  "Croatia", "Slovenia", "Hungary", "Slovakia",
+  "Czech republic"
+) 
+
+
+some.eu.maps <- map_data("world", region =some.eu.countries )
+
+region.lab.data <- some.eu.maps %>%
+  group_by(region) %>%
+  summarise(long = mean(long), lat = mean(lat))
+
+region.lab.data <- some.eu.maps %>%
+  group_by(region) %>%
+  summarise(long = mean(long), lat = mean(lat))
+
+regionieuropa=region.lab.data%>%left_join(statimedagliesomma)
+
+
+```
+
+
+
+## Medagliere olimpico Europeo
+```{r, echo=FALSE, mappa-medagliere-europeo1}
+
+ggplot(some.eu.maps, aes(x = long, y = lat)) +
+  geom_polygon(aes( group = group, fill = region))+
+  geom_text(aes(label = paste(region," " ,sommamedaglie)),color="black", data = regionieuropa,  size = 3, hjust = 0.5)+
+  scale_fill_viridis_d(option = "plasma"  )+
+  theme_void()+
+  theme(legend.position = "none")
+
+```
+
+
+```{r, echo=FALSE, creazioneDatiGrafico7}
+
+
+annistatimedaglie=anni%>%
+  mutate(region=country)%>%
+  group_by(region)%>%
+  select(year,region,total)%>%
+  arrange(region)%>%
+  summarise(total=sum(total))
+  
+
+
+
+
+annistatimedaglie=annistatimedaglie%>%
+  group_by(region)%>%
+  summarise(total=sum(total))
+
+medagliepopolazione=popolazione%>%left_join(annistatimedaglie)%>%arrange(desc(total))
+medagliepopolazione=medagliepopolazione%>%filter(total!="NA")%>%mutate(popolazione=popolazione/1000)
+
+
+
+
+```
+
+
+## Rapporto popolazione e medaglie 
+
+```{r, echo=FALSE, grafico-rapporto-popolazione-medaglie2}
+bollePopMedaglie <- ggplot(
+  medagliepopolazione[1:10,], 
+  aes(x = popolazione, y=total, size = popolazione,color=region)
+  ) +
+  geom_point(show.legend = TRUE, alpha =1) +
+  scale_color_viridis_d(option = "plasma" ) +
+  scale_size(range = c(2, 15)) +
+  labs(x = "popolazione in migliaia", y = "medaglie")+
+  theme(legend.position = "top")+
+  scale_x_continuous(limits = c(3500, max(medagliepopolazione$popolazione)))
+
+
+
+
+bollePopMedaglie
+```
+
+
+```{r, echo=FALSE, creazioneDatiGrafico4}
+
+popolazionemedaglie=regionieuropa%>%left_join(popolazione)%>%
+  select(popolazione,region,sommamedaglie)
+
+popolazionemedaglie1=popolazionemedaglie%>%
+  arrange(desc(sommamedaglie))
+
+popolazionemedaglie1=popolazionemedaglie1[1:5,]%>%mutate(Popolazione=popolazione/max(popolazione),Medaglie=sommamedaglie/max(sommamedaglie),Nazione=region)%>%select(Popolazione,Medaglie,Nazione)
+
+df.long <- gather(popolazionemedaglie1, variable,valore, -Nazione)
+
+
+
+
+```
+
+
+## Confronto popolazione con medaglie
+```{r, echo=FALSE, grafico-confronto-popolazoine-medaglie1}
+ggplot(data = df.long, aes(x = Nazione, y = valore, fill = variable)) +
+  geom_col(position = position_dodge()) 
+
+```
+
+
+```{r, echo=FALSE,results='hide', creazioneDatiGrafico5}
+atletaperevento=evento%>%left_join(partecipanti)%>%mutate(born=as.Date(born))%>%drop_na()
+
+atletivincitori=filter(atletaperevento,medal!="na")
+atletivincitori=filter(atletivincitori,edition!="na")
+
+atletivincitori=atletivincitori%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  separate(col= born , into=c("anno","mese","giorno"),convert = TRUE)%>%
+  select(Year,sport,edition,event,athlete,anno,medal)
+
+
+atletivincitori1=atletivincitori%>%
+  summarise(Atleta=athlete,event=event,Edizione=Year,sport=sport,Year=Year-as.numeric(anno))
+  
+anniatleta=atletivincitori1%>%
+  select(Atleta,sport,Year,Edizione)
+
+
+atletigiovani=anniatleta%>%
+  mutate(Sport=sport,Anni=Year)%>%
+  select(Atleta,Sport,Anni,Edizione)%>%
+  arrange(Anni)
+
+atletigiovani=atletigiovani[1:2,]
+
+atletianziani=anniatleta%>%
+  mutate(Sport=sport,Anni=Year)%>%
+  select(Atleta,Sport,Anni,Edizione)%>%
+  arrange(desc(Anni))
+
+atletianziani=atletianziani[1,]
+
+
+etamediaatleti=atletivincitori%>%
+  group_by(sport)%>%
+  summarise(media_età=mean(Year-as.numeric(anno)))%>%
+  drop_na() 
+
+
+
+sportmediaetaminore=etamediaatleti%>%
+  arrange(media_età)
+
+sportmediaetamaggiore=etamediaatleti%>%
+  arrange(desc(media_età))
+
+```
+
+
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico9}
+statiperanni=anni%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  select(year,edition)%>%
+  filter(edition=="Summer")%>%
+  group_by(year)%>%
+  summarise(n=n())
+
+
+
+```
+
+##  Nazioni partecipanti
+
+```{r, echo=FALSE, grafico-nazioni-partecipanti}
+
+graficostatiperanni = statiperanni %>%
+  ggplot(aes(x = year, y = n)) +
+  geom_line(color = "gold1") +
+  labs(subtitle = "1896 - 2020",
+       y = "Numero di stati partecipanti",
+       caption = "Source: Kaggle") +
+  theme_minimal() +
+  theme(text = element_text(family = "DM Sans Medium"),
+        axis.title.x = element_blank(),
+        legend.position = "bottom") +
+  scale_x_continuous(limits = c(1896, 2020)) +
+  geom_point(color = "goldenrod3")
+
+graficostatiperanni
+```
+
+
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico6}
+
+annipopmedaglie=atletaperevento
+
+
+
+
+
+annipopmedaglie=annipopmedaglie%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  select(Year,sport,edition)
+  
+
+
+n=annipopmedaglie%>%count(Year,edition,sport)%>%mutate(p=n)%>%select(Year,edition,p)
+
+sportanno=n%>%count(Year,edition,p)%>%select(Year,edition,n)%>%group_by(Year,edition)%>%summarise(n=sum(n))%>%filter(n>2)
+
+
+
+```
+
+## Discipline organizzate
+
+```{r, echo=FALSE, grafico-discipline-organizzate}
+andamentodiscipline <- ggplot(
+  sportanno,
+  aes(Year, n, group = edition, color = edition)
+  ) +
+  geom_line() +
+  scale_color_viridis_d(option = "plasma" ) +
+  geom_point(aes(group = seq_along(n))) +
+  labs(x = "Anno", y = "Numero discipline organizzate",caption = "Source: Kaggle") +
+  theme(legend.position = "top")
+
+andamentodiscipline 
+```
+
+
+
+
+
+
+
+
+
+## Età partecipanti
+
+```{r, echo=FALSE, grafico-età-partecipanti}
+plot(c(1:length(etamediaatleti$sport)),etamediaatleti$media_età,
+     main="Età media per disciplina", xlab="Identificativo disciplina", ylab="Età")
+
+```
+
+
+## Atleti più giovani
+
+```{r}
+sportmediaetaminore[1:5,]
+
+atletigiovani
+```
+
+## Atleti più anziani
+
+```{r}
+sportmediaetamaggiore[1:5,]
+
+atletianziani
+```
+
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico8}
+partecipantiedizione=partecipanti%>%full_join(evento)
+partecipantiedizione=partecipantiedizione%>%select(edition,sex)%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%filter(edition=="Summer")
+  
+  
+sportanno=partecipantiedizione%>%group_by(Year,sex)%>%summarise(n=n())%>%filter(n>2,sex!="NA",Year!="NA")
+
+
+
+```
+
+
+## Sesso dei concorrenti
+
+```{r, echo=FALSE, grafico-sesso-concorrenti}
+sessopartecipanti <- ggplot(
+  sportanno,
+  aes(Year, n, group = sex, color = sex)
+  ) +
+  geom_line() +
+  scale_color_viridis_d(option = "plasma" ) +
+  geom_point(aes(group = seq_along(n))) +
+  labs(x = "Anno", y = "Numero partecipanti") +
+  theme(legend.position = "top")
+
+sessopartecipanti
+```
+
+
+
+## Conclusioni
+
+L’analisi del dataset è stata svolta analizzando prima delle informazioni più macroscopiche per poi entrare nel dettaglio.
+La complessità principale è stata quella di rapportare le informazioni relative ai risultati olimpici su una base geografica poiché, nel corso degli anni, la struttura geopolitica è cambiata, soprattutto con la dissoluzione dell’URSS.
+Il dataset si è prestato bene alle analisi svolte e presenta ancora molte opportunità di data mining sui dati presenti.
