@@ -1,0 +1,487 @@
+---
+title: "Prosa"
+author: "Comisso Andrea, 147984"
+output:
+  ioslides_presentation: default
+  powerpoint_presentation: default
+  slidy_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+```
+
+
+## Studio delle olimpiadi invernali ed'estive 
+
+Il presente documento ha lo scopo di analizzare un dataset estraendo e visualizzando varie metriche.
+La creazione delle rappresentazioni è stata effettuata utilizzando il linguaggio r.
+
+
+Il dataset utilizzato per questo studio è quello relativo alle olimpiadi dal 1896 al 2020.
+Sono state prese in esame varie metriche alcune di queste sono:
+
+    1. Medaglie vinte.
+    
+    2. Discipline presenti. 
+    
+    3. Popolazione delle varie nazioni.
+    
+    4. Partecipanti agli eventi
+    
+    
+```{r, echo = FALSE, results='hide', librerie}
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(ggplot2)
+library(dplyr)
+require(maps)
+library(gapminder)
+library(readr)
+library(tidyr)
+library(ggthemes)
+library(gganimate)
+library(plotly)
+```
+
+
+
+
+    
+```{r, echo = FALSE, dataset}
+iso3_code <- read_csv("countries_codes_and_coordinates.csv")
+anni = read.csv('Olympic_Games_Medal_Tally.csv', sep=",")
+partecipanti = read.csv('Olympic_Athlete_Bio.csv', sep=",")
+evento = read.csv('eventi.csv', sep=",")
+popolazione = read.csv('population2020.csv', sep=",")
+popolazione[21,1]="UK"
+popolazione[86,1]="Czech Republic"
+anni$country[anni$country=="Great Britain"]="UK"
+anni$country[anni$country=="West Germany"]="Germany"
+anni$country[anni$country=="East Germany"]="Germany"
+anni$country[anni$country=="People's Republic of China"]="China"
+anni$country[anni$country=="Chinese Taipei"]="China"
+anni$country[anni$country=="Hong Kong, China"]="China"
+anni$country[anni$country=="ROC"]="Russia"
+anni$country[anni$country=="Russian Federation"]="Russia"
+evento$edition[evento$edition=="1956 Equestrian Olympics"]="1956 Summer Olympics"
+```
+
+
+
+# - Manipolazione dei dati per capire come viene distribuito il medagliere olimpico mondiale.
+Il grafico permette di visualizzare le prime 5 nazioni con il maggior numero di medaglie vinte per ciascuna edizione delle olimpiadi.
+Si può notare come ci sia una competizione stretta tra USA-URSS solo fino agli anni 90, e poi questa venga a mancare quando, negli anni 90, l'URSS si è dissolta.
+Inoltre si nota come la Germania sia quasi sempre presente nel grafico e come nelle edizioni invernali emergano le presenze di Norvegia e Svezia.
+Come ultima curiosità si può osservare come dopo gli anni 2000 anche la Cina sia diventata competitiva ed abbia iniziato a vincere un numero elevate di competizioni.
+
+
+```{r, echo=FALSE, echo=FALSE,results='hide', creazioneDatiGrafico1}
+popolazione=popolazione%>%
+  mutate(region=Country..or.dependency.,popolazione=Population..2020.)%>%
+  select(popolazione,region)
+medaglie=anni%>%
+  select(year,gold,silver,bronze)%>%
+  group_by(year)%>%
+  summarise(gold=sum(gold),silver=sum(silver),bronze=sum(bronze))
+  
+statimedagliesomma=anni%>%
+  mutate(region=country)%>%
+  group_by(region)%>%
+  select(region,total)%>%
+  summarise(sommamedaglie=sum(total))%>%
+  arrange(region)
+statimedaglie=anni%>%
+  select(year,country_noc,total)
+```
+
+
+
+
+
+
+```{r, echo=FALSE,results='hide', creazioneDatiGrafico2}
+gdp_formatted <- statimedaglie %>%
+  group_by(year) %>%
+  mutate(rank = rank(-total),
+         Value_rel = total/total[rank==1]) %>%
+  group_by(country_noc) %>% 
+  filter(rank <=5) %>%
+  arrange(year,desc(total))%>%
+  ungroup()
+staticplot = ggplot(gdp_formatted, aes(rank, group = country_noc, 
+                fill = as.factor(country_noc), color = as.factor(country_noc))) +
+  geom_tile(aes(y = total/2,
+                height = total,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(country_noc, " ")), vjust = 0.2, hjust = 1) +
+  geom_text(aes(y=total,label = total, hjust=0)) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = none, fill = none) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+         axis.title.y=element_blank(),
+        legend.position="none",
+        panel.background=element_blank(),
+        panel.border=element_blank(),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major.x = element_line( size=.1, color="grey" ),
+        panel.grid.minor.x = element_line( size=.1, color="grey" ),
+        plot.title=element_text(size=25, hjust=0.5, face="bold", colour="grey", vjust=-1),
+        plot.subtitle=element_text(size=23, hjust=0.5, face="italic", color="grey"),
+        plot.caption =element_text(size=12, hjust=0.5, face="italic", color="grey"),
+        plot.background=element_blank(),
+       plot.margin = margin(2,2,2,4,"cm"))
+anim = staticplot + transition_states(year, transition_length = 4, state_length = 1) +
+  view_follow(fixed_x = TRUE)  +
+  labs(title = 'medaglie vinte : {closest_state}',  
+       subtitle  =  "Top 5 Countries",
+       caption  = "medaglie vinte dagli stati | Data Source: Olimpic games-Kaggle")
+grafico=animate(anim, 200, fps = 5,  width = 750, height = 400, 
+        renderer = gifski_renderer("gganim.gif"))
+grafico
+  
+```
+
+
+## Medagliere olimpico Mondiale
+
+```{r, echo=FALSE, grafico-medagliere-mondiale1}
+grafico
+```
+
+
+# - Medagliere olimpico mondiale più nel dettaglio
+Il grafico permette di visualizzare il numero di medaglie vinte per ogni nazione.
+È interessante evidenziare come varino i medaglieri in occasione di due eventi storici particolari: nell'edizione del 1980 a Mosca in cui gli USA non parteciparono per protesta dell'invazione del'URSS in Afghanistan e nelledizione del 1984 in cui, per rimostranza a quanto avvenuto nell'edizione precedente, l'URSS non partecipi alle olimiadi di Los Angeles.
+
+```{r, echo=FALSE, creazioneDatiGrafico10}
+medaglieperstato=anni%>%
+  mutate(Country=country)%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  select(year,edition,Country,gold,silver,bronze)%>%
+  filter(edition=="Summer")%>%
+  group_by(year,Country)%>%
+  summarise(medaglievinte=sum(gold,silver,bronze))
+medaglieperstato$Country[medaglieperstato$Country=="UK"]="United Kingdom"
+medaglieperstato$Country[medaglieperstato$Country=="Soviet Union"]="Russia"
+medaglieperstato=medaglieperstato%>%full_join(iso3_code)%>%
+  drop_na() 
+```
+
+
+## Medagliere mondiale
+
+
+```{r, echo=FALSE, grafico-medagliere-mondiale2}
+g <- list(
+  scope = 'world')
+fig <- plot_geo(medaglieperstato, frame = ~year) %>%
+  add_trace(locations = ~`Alpha-3 code`,
+            z = ~`medaglievinte`,
+            zmin = min(medaglieperstato$`medaglievinte`),
+            zmax = max(medaglieperstato$`medaglievinte`),
+            color = ~`medaglievinte`,
+            colorscale = "Hot_r") %>%
+  layout(title = "Totale medaglie vinte\n1896 - 2020\n",
+         geo = list(showocean = TRUE, oceancolor = rgb(0,1,1)),
+           margin = g) %>%
+  animation_opts(50) %>%
+  colorbar(title = "Numero", ticksuffix = "Medaglie") %>%
+  config(displayModeBar = FALSE)
+fig
+```
+
+
+# - Medagliere olimpico Europeo 
+Il grafico permette di visualizzare la somma di medaglie vinte da ogni stato Europeo.
+Si nota un divario netto fra le nazioni di Germania, Francia, Inghilerra, Italia, Ungheria, Svezia e le altre nazioni Europee.
+
+
+```{r, echo=FALSE, creazioneDatiGrafico3}
+
+ some.eu.countries <- c("Austria","Albania","Belgium","Bosnia","Bulgaria","Croatia","Cyprus",
+                    "Czech republic","Denmark","Estonia","Finland","France",
+                    "Germany","Greece","Hungary","Ireland","Italy","Kosovo","Latvia",
+                    "Lithuania","Luxembourg","Macedonia republic","Macedonia","Malta","Montenegro","Netherlands","Poland",
+                    "Portugal","Romania","Serbia","Slovakia","Slovenia","Spain","Switzerland",
+                    "Sweden","UK")
+
+some.eu.maps <- map_data("world", region =some.eu.countries )
+region.lab.data <- some.eu.maps %>%
+  group_by(region) %>%
+  summarise(long = mean(long), lat = mean(lat))
+region.lab.data <- some.eu.maps %>%
+  group_by(region) %>%
+  summarise(long = mean(long), lat = mean(lat))
+
+regionieuropa=region.lab.data%>%left_join(statimedagliesomma)
+regionieuropa=regionieuropa%>%filter(!is.na(sommamedaglie))
+```
+
+
+
+## Medagliere olimpico Europeo
+```{r, echo=FALSE, mappa-medagliere-europeo1}
+ggplot(some.eu.maps, aes(x = long, y = lat)) +
+  geom_polygon(aes( group = group, fill = region))+
+  geom_text(aes(label = paste(region," " ,sommamedaglie)),color="black", data = regionieuropa,  size = 3, hjust = 0.5)+
+  scale_fill_viridis_d(begin = 0.1, end = 1  )+
+  theme_void()+
+  theme(legend.position = "none")
+
+ 
+```
+
+# - Rapporto popolazione e medaglie  delle prime 10 nazioni mondiali per medaglie vinte
+In questa rappresentazione si vuole rapportare la popolazione di una nazione con le medaglie vinte dalla nazione stessa per evidenziare una potenziale correlazione tra le due variabili.
+Viene effettuata la comparazione selezionando le prime 10 nazioni mondiali per numero di medaglie vinte.
+Dal grafico si evince che USA e Cina sono agli estremi opposti del grafico poiché gli USA hanno un elevato numero di medaglie a fronte di una popolazione relativamente piccola mentre la Cina, con i suoi oltre 1.500.000.000 abitanti, non riesce ad emergere rispetto a nazioni meno popolose.
+
+```{r, echo=FALSE, creazioneDatiGrafico7}
+annistatimedaglie=anni%>%
+  mutate(region=country)%>%
+  group_by(region)%>%
+  select(year,region,total)%>%
+  arrange(region)%>%
+  summarise(total=sum(total))
+  
+annistatimedaglie=annistatimedaglie%>%
+  group_by(region)%>%
+  summarise(total=sum(total))
+medagliepopolazione=popolazione%>%left_join(annistatimedaglie)%>%arrange(desc(total))
+medagliepopolazione=medagliepopolazione%>%filter(total!="NA")%>%mutate(popolazione=popolazione/1000)
+medagliepopolazione$region[medagliepopolazione$region=="United States"]="USA            "
+```
+
+
+## Rapporto popolazione e medaglie 
+
+```{r, echo=FALSE, grafico-rapporto-popolazione-medaglie2}
+
+
+bollePopMedaglie <- ggplot(
+  medagliepopolazione[1:10,], 
+  aes(x = popolazione, y=total, size = popolazione,color=region)
+  ) +
+  geom_point(show.legend = TRUE, alpha =1) +
+  scale_color_viridis_d(option = "plasma" ) +
+  scale_size(range = c(2, 15)) +
+  labs(x = "popolazione in migliaia", y = "medaglie")+ 
+  theme(plot.title = element_text(hjust = 1)) +
+  theme(legend.position = "top")+
+  scale_x_continuous(limits = c(3500, max(medagliepopolazione$popolazione)+100000))
+
+
+
+bollePopMedaglie
+```
+
+# - Confronto popolazione con medaglie delle 5 nazioni europee col maggior numero di medaglie vinte
+Il grafico permette di visualizzare, come per la rappresentazione precedente, l'andamento delle prime 5 nazioni europee per numero di medaglie vinte rapportando queste alla popolazione della nazione stessa verificando come la popolazione influisca positivamente o negativamente con il numero delle medaglie vinte.
+Come punto di riferimento è stata presa la Germania, poiché è la nazione che ha sia il numero di medaglie vinte sia la popolazione superiore alle altre nazioni prese in considerazione.
+Il grafico mostra come la Svezia ha una barra della popolazione nettamente inferiore alla barra delle medaglie vinte mentre questo non succede con gli altri stati presi in considerazione; questo dato ci induce ad ipotizzare che la popolazione non influisca sul numero di medaglie vinte.
+
+
+```{r, echo=FALSE, creazioneDatiGrafico4}
+popolazionemedaglie=regionieuropa%>%left_join(popolazione)%>%
+  select(popolazione,region,sommamedaglie)
+popolazionemedaglie1=popolazionemedaglie%>%
+  arrange(desc(sommamedaglie))
+popolazionemedaglie1=popolazionemedaglie1[1:5,]%>%mutate(Popolazione=popolazione/max(popolazione),Medaglie=sommamedaglie/max(sommamedaglie),Nazione=region)%>%select(Popolazione,Medaglie,Nazione)
+df.long <- gather(popolazionemedaglie1, variable,valore, -Nazione)
+
+
+```
+
+
+## Confronto popolazione con medaglie
+
+```{r, echo=FALSE, grafico-confronto-popolazoine-medaglie1}
+ggplot(data = df.long, aes(x = Nazione, y = valore, fill = variable)) +
+  geom_col(position = position_dodge()) 
+```
+
+# - Nazioni partecipanti
+
+Il grafico permette di visualizzare l'andamento del numero delle nazioni partecipanti alla varie edizioni tra il 1896 e il 2020.
+Come si può notare, c'è un aumento costante delle nazioni partecipanti soprattutto dopo gli anni 90, dopo lo scioglimento dell'URSS.
+
+```{r, echo=FALSE,results='hide', creazioneDatiGrafico5}
+atletaperevento=evento%>%left_join(partecipanti)%>%mutate(born=as.Date(born))%>%drop_na()
+atletivincitori=filter(atletaperevento,medal!="na")
+atletivincitori=filter(atletivincitori,edition!="na")
+atletivincitori=atletivincitori%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  separate(col= born , into=c("anno","mese","giorno"),convert = TRUE)%>%
+  select(Year,sport,edition,event,athlete,anno,medal)
+atletivincitori1=atletivincitori%>%
+  summarise(Atleta=athlete,event=event,Edizione=Year,sport=sport,Year=Year-as.numeric(anno))
+  
+anniatleta=atletivincitori1%>%
+  select(Atleta,sport,Year,Edizione)
+atletigiovani=anniatleta%>%
+  mutate(Sport=sport,Anni=Year)%>%
+  select(Atleta,Sport,Anni,Edizione)%>%
+  arrange(Anni)
+atletigiovani=atletigiovani[1:2,]
+atletianziani=anniatleta%>%
+  mutate(Sport=sport,Anni=Year)%>%
+  select(Atleta,Sport,Anni,Edizione)%>%
+  arrange(desc(Anni))
+atletianziani=atletianziani[1,]
+etamediaatleti=atletivincitori%>%
+  group_by(sport)%>%
+  summarise(media_età=mean(Year-as.numeric(anno)))%>%
+  drop_na() 
+sportmediaetaminore=etamediaatleti%>%
+  arrange(media_età)
+sportmediaetamaggiore=etamediaatleti%>%
+  arrange(desc(media_età))
+```
+
+
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico9}
+statiperanni=anni%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  select(year,edition)%>%
+  filter(edition=="Summer")%>%
+  group_by(year)%>%
+  summarise(n=n())
+```
+
+##  Nazioni partecipanti
+
+
+```{r, echo=FALSE, grafico-nazioni-partecipanti}
+graficostatiperanni = statiperanni %>%
+  ggplot(aes(x = year, y = n)) +
+  geom_line(color = "gold1") +
+  labs(subtitle = "1896 - 2020",
+       y = "Numero di stati partecipanti",
+       caption = "Source: Kaggle") +
+  theme_minimal() +
+  theme(
+        axis.title.x = element_blank(),
+        legend.position = "bottom") +
+  scale_x_continuous(limits = c(1896, 2020)) +
+  geom_point(color = "goldenrod3")
+graficostatiperanni
+```
+
+
+
+# - Discipline organizzate separando le edizioni invernali da quelle estive
+Il grafico permette di visualizzare il numero di nazioni partecipanti alle olimipiadi estive ed alle olimpiadi invernali.
+La prima cosa che si nota dal grafico è il fatto che le prime olimipiadi invernali si svolgano 28 anni dopo le prime olimpiadi estive e il netto gap tra le discipline svolte nelle edizioni estive rispetto a quelle invernali.
+
+
+
+```{r, echo=FALSE, creazioneDatiGrafico6}
+annipopmedaglie=atletaperevento
+annipopmedaglie=annipopmedaglie%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%
+  select(Year,sport,edition)
+  
+n=annipopmedaglie%>%count(Year,edition,sport)%>%mutate(p=n)%>%select(Year,edition,p)
+sportanno=n%>%count(Year,edition,p)%>%select(Year,edition,n)%>%group_by(Year,edition)%>%summarise(n=sum(n))%>%filter(n>2)
+```
+
+##Discipline organizzate
+
+
+
+```{r, echo=FALSE, grafico-discipline-organizzate}
+andamentodiscipline <- ggplot(
+  sportanno,
+  aes(Year, n, group = edition, color = edition)
+  ) +
+  geom_line() +
+  scale_color_viridis_d(begin = 0.1, end = 0.7 ) +
+  geom_point(aes(group = seq_along(n))) +
+  labs(x = "Anno", y = "Numero discipline organizzate",caption = "Source: Kaggle") +
+  theme(legend.position = "top")
+andamentodiscipline 
+```
+
+
+
+
+
+
+
+# - Studiando l'età media delle varie discipline organizzate alle olimpiadi ho trovato un range di età media che va dai 24 ai 34 anni.
+Il grafico permette di visualizzare l'età media dei partecipanti per ciascuna disciplina.
+Analizzando i dati, rappresentati nel grafico, ho estratto i dati relativi alle 5 discipline con l'età media più alta e quelli relativi alle 5 discipline con l'età media più bassa.
+Da qui ho evidenziato gli atleti più giovani (11 e 12 anni) e quelli più anziani (73 anni) che abbiano vinto una medaglia alle olimpiadi.
+
+## Età partecipanti
+
+```{r, echo=FALSE, grafico-età-partecipanti}
+plot(c(1:length(etamediaatleti$sport)),etamediaatleti$media_età,
+     main="Età media per disciplina", xlab="Identificativo disciplina", ylab="Età")
+```
+
+
+## Atleti più giovani
+
+```{r}
+sportmediaetaminore[1:5,]
+atletigiovani
+```
+
+## Atleti più anziani
+
+```{r}
+sportmediaetamaggiore[1:5,]
+atletianziani
+```
+
+
+# - Come ultimo studio ho voluto analizzare l'andamento dei partecipanti femminili e quelli maschili.
+Il grafico permette di confrontare il numero di partecipanti maschili e femminili per ciascuna edizione delle olimpiadi.
+Si nota come gli uomini abbiano iniziato un anno prima rispetto alle donne, anche se, nella prima edizione delle olimpiadi una donna abbia partecipato in forma non ufficiale.
+È confortante verificare come, al giorno d'oggi, il numero di partecipanti maschili sia pari al numero di partecipanti femminili .
+
+```{r, echo=FALSE, creazioneDatiGrafico8}
+partecipantiedizione=partecipanti%>%full_join(evento)
+partecipantiedizione=partecipantiedizione%>%select(edition,sex)%>%
+  separate(col = edition, into = c("Year", "edition", "Olympics"), convert = TRUE)%>%filter(edition=="Summer")
+  
+  
+sportanno=partecipantiedizione%>%group_by(Year,sex)%>%summarise(n=n())%>%filter(n>2,sex!="NA",Year!="NA")
+```
+
+
+## Sesso dei concorrenti
+
+```{r, echo=FALSE, grafico-sesso-concorrenti}
+sessopartecipanti <- ggplot(
+  sportanno,
+  aes(Year, n, group = sex, color = sex)
+  ) +
+  geom_line() +
+   scale_color_viridis_d(begin = 0.9, end = 0) +
+  geom_point(aes(group = seq_along(n))) +
+  labs(x = "Anno", y = "Numero partecipanti") +
+  theme(legend.position = "top")
+sessopartecipanti
+```
+
+
+
+## Conclusioni
+
+L’analisi del dataset è stata svolta analizzando prima delle informazioni più macroscopiche per poi entrare nel dettaglio.
+La complessità principale è stata quella di rapportare le informazioni relative ai risultati olimpici su una base geografica poiché, nel corso degli anni, la struttura geopolitica è cambiata, soprattutto con la dissoluzione dell’URSS.
+Il dataset si è prestato bene alle analisi svolte e presenta ancora molte opportunità di data mining sui dati presenti.
